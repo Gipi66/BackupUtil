@@ -1,5 +1,7 @@
 Manifest-Version: 1.0
 Built-By: pc2
+Class-Path: sevenzipjbinding-9.20-2.00beta.jar sevenzipjbinding-all-pl
+ atforms-9.20-2.00beta.jar commons-compress-1.14.jar xz-1.6.jar
 Build-Jdk: 1.8.0_121
 Created-By: Maven Integration for Eclipse
 Main-Class: com.mobileffort.show_dirs.Main
