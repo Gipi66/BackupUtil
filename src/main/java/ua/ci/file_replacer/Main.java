@@ -27,6 +27,9 @@ public class Main {
 	 */
 	public static void main(String[] args) {
 		Properties props = loadProps();
+		if (props == null) {
+			System.exit(0);
+		}
 		long startTime = new Date().getTime();
 		ReplacerThread repl = new ReplacerThread("/home/pc2/realt/realtyboard/media", "/home/pc2/del/media", true, true,
 				"", "media", props);
@@ -39,7 +42,7 @@ public class Main {
 			e.printStackTrace();
 		}
 
-		repl.decompress();
+		// repl.decompress();
 		System.out.println("total time: " + new Date(new Date().getTime() - startTime).getTime() / 1000);
 	}
 
@@ -48,6 +51,7 @@ public class Main {
 		Path propsPath = Paths.get("conf.ini");
 		if (Files.notExists(propsPath)) {
 			createProps();
+			return null;
 		}
 		try {
 			props.load(new FileInputStream("conf.ini"));
@@ -64,7 +68,7 @@ public class Main {
 						"Error: Please add a \"%s\" to the configuration file and try run again.\nTo set the default configuration, delete \"%s\" file.",
 						key, propsPath.toAbsolutePath().toString());
 
-				System.exit(1);
+				return null;
 			}
 		}
 		return props;
@@ -100,6 +104,7 @@ public class Main {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+		System.out.printf("Default config file has generated (%s).\n", file.getAbsolutePath());
 
 	}
 }

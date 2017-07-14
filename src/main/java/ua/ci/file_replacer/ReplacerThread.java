@@ -28,7 +28,9 @@ public class ReplacerThread {
 	private final Path inputDir;
 	private final Path outputDir;
 
+	@SuppressWarnings("unused")
 	private boolean hasRecursive;
+	@SuppressWarnings("unused")
 	private boolean hasReplace;
 	private boolean isFilter;
 
@@ -111,7 +113,7 @@ public class ReplacerThread {
 
 	public void createTarGZ(Path file) throws FileNotFoundException, IOException {
 
-		try (final FileOutputStream fOut = new FileOutputStream(new File(archive_path));
+		try (final FileOutputStream fOut = new FileOutputStream(outputDir.toFile());
 				final BufferedOutputStream bOut = new BufferedOutputStream(fOut);
 				final GzipCompressorOutputStream gzOut = new GzipCompressorOutputStream(bOut);
 				final TarArchiveOutputStream tOut = new TarArchiveOutputStream(gzOut);) {
