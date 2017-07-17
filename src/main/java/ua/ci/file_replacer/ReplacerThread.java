@@ -9,9 +9,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.logging.Logger;
@@ -218,7 +221,7 @@ public class ReplacerThread {
 		}
 	}
 
-	private void listFiles(Path path) throws IOException {
+	private void listFiles2(Path path) throws IOException {
 
 		try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
 			for (Path entry : stream) {
@@ -242,6 +245,17 @@ public class ReplacerThread {
 
 				}
 			}
+		}
+	}
+
+	private void listFiles(Path path) throws IOException {
+		Files.walkFileTree(path, new ReplacerFileVisitor());
+	}
+
+	class ReplacerFileVisitor extends SimpleFileVisitor<Path> {
+		public FileVisitResult visitFile(Path path, BasicFileAttributes attr) {
+			files.add(path);
+			return FileVisitResult.CONTINUE;
 		}
 	}
 
