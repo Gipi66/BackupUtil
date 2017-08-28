@@ -7,7 +7,10 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.SocketException;
+import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -16,6 +19,7 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Properties;
 import java.util.logging.Logger;
 
@@ -26,7 +30,14 @@ import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.net.ftp.FTP;
+import org.apache.commons.net.ftp.FTPClient;
+import org.apache.commons.net.ftp.FTPFile;
+import org.apache.commons.net.ftp.FTPReply;
 
+import net.anotheria.moskito.aop.annotation.Monitor;
+
+@Monitor
 public class ReplacerThread {
 	private final Path inputDir;
 	private final Path outputDir;
@@ -39,16 +50,33 @@ public class ReplacerThread {
 
 	private String filter;
 
+	private final FTPClient ftp;
+
 	private String mediaName;
 	private boolean isMedia;
 
 	private String archive_path;
 	private String extract_to_path;
 	private ArrayList<Path> files;
+	private Properties props;
 
-	public ReplacerThread(String oldDirPath, String newDirPath) {
+	public ReplacerThread(String oldDirPath, String newDirPath, Properties props) {
 		this.inputDir = Paths.get(oldDirPath);
-		this.outputDir = Paths.get(newDirPath);
+		this.outputDir = Paths.get(props.getProperty("outfile_path"));
+
+		this.props = props;
+
+		// create dirs
+		if (!Files.exists(outputDir.getParent())) {
+			try {
+				Files.createDirectories(outputDir.getParent());
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+		ftp = new FTPClient();
 
 		files = new ArrayList<Path>();
 	}
@@ -56,7 +84,7 @@ public class ReplacerThread {
 	public ReplacerThread(String oldDirPath, String newDirPath, boolean hasRecursive, boolean hasReplace, String filter,
 			String mediaName, Properties props) {
 
-		this(props.getProperty("directory_path"), props.getProperty("outfile_path"));
+		this(props.getProperty("directory_path"), props.getProperty("outfile_path"), props);
 		// TODO
 		this.hasRecursive = hasRecursive;
 		// TODO
@@ -75,7 +103,43 @@ public class ReplacerThread {
 
 	public void compress() throws IOException {
 		runListFiles();
-		createTarGZ(Paths.get("//home//pc2//del//arch//media.tar.gz"));
+		
+		String ftp_dump = "//backup_ciua//" + outputDir.getFileName();
+		createTarGZ(Paths.get(ftp_dump));
+		sendFile();
+	}
+
+	public void sendFile() throws SocketException, IOException {
+
+		String ftp_dump = "//backup_ciua//" + outputDir.getFileName();
+
+		{
+			String ftpUrl = props.getProperty("ftp_server");
+			String ftpLogin = props.getProperty("ftp_login");
+			String ftpPassword = props.getProperty("ftp_password");
+
+			ftp.connect(ftpUrl);
+			ftp.login(ftpLogin, ftpPassword);
+		}
+		int reply = ftp.getReplyCode();
+		if (!FTPReply.isPositiveCompletion(reply)) {
+			ftp.disconnect();
+			System.err.println("FTP server refused connection.");
+		}
+
+		ftp.deleteFile(ftp_dump);
+
+		ftp.setFileType(FTP.BINARY_FILE_TYPE);
+		// log.info(String.format("%s\n %s", Arrays.toString(files),
+		// files[1].getName()));
+		// ArrayList<FTPFile> fileList = new ArrayList<FTPFile>(Arrays.asList(files));
+		// fileList.parallelStream().forEach(i-> log.info(i.getName()));
+		InputStream is = new FileInputStream(outputDir.toFile());
+
+		ftp.storeFile(ftp_dump, is);
+
+		// after all
+		ftp.disconnect();
 	}
 
 	public void decompress() {

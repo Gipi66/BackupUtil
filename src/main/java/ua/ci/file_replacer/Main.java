@@ -61,7 +61,7 @@ public class Main {
 		}
 
 		String[] reqKeys = new String[] { "directory_path", "outfile_path", "filter_name", "main_dir_name",
-				"archive_path", "extract_to_path" };
+				"archive_path", "extract_to_path" ,"ftp_server","ftp_password","ftp_login"};
 		for (String key : reqKeys) {
 			if (!props.containsKey(key)) {
 				System.out.printf(
@@ -88,10 +88,16 @@ public class Main {
 		}
 		Properties compressProps = new Properties();
 		Properties deCompressProps = new Properties();
+		
 
 		compressProps.put("directory_path", "//home//pc2//realt//realtyboard//media");
 		compressProps.put("outfile_path", "//home//pc2//del//arch//media.tar.gz");
 		compressProps.put("filter_name", "");
+		
+		compressProps.put("ftp_password", "");
+		compressProps.put("ftp_login", "");
+		compressProps.put("ftp_server", "");
+		compressProps.put("ftp_dir", "//backup_ciua//");
 		compressProps.put("main_dir_name", "media");
 
 		deCompressProps.put("archive_path", "//home//pc2//del//arch//media.tar.gz");
