@@ -103,9 +103,17 @@ public class ReplacerThread {
 
 	public void compress() throws IOException {
 		runListFiles();
-		
-		String ftp_dump = "//backup_ciua//" + outputDir.getFileName();
-		createTarGZ(Paths.get(ftp_dump));
+		Persistance pers = new Persistance();
+		{
+			ArrayList<Path> temps_files = pers.getResultPaths();
+			temps_files.parallelStream().forEach(i -> {
+				if (Files.exists(i)) {
+					files.add(i);
+				}
+			});
+			log.info("temps_files.parallelStream() stopped");
+		}
+		createTarGZ();
 		sendFile();
 	}
 
@@ -178,7 +186,7 @@ public class ReplacerThread {
 		}
 	}
 
-	public void createTarGZ(Path file) throws FileNotFoundException, IOException {
+	public void createTarGZ() throws FileNotFoundException, IOException {
 
 		try (final FileOutputStream fOut = new FileOutputStream(outputDir.toFile());
 				final BufferedOutputStream bOut = new BufferedOutputStream(fOut);
@@ -187,11 +195,12 @@ public class ReplacerThread {
 
 			tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
 			files.stream().forEach(i -> {
-				try {
-					addFileToTarGz2(tOut, i, "");
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+				if (i.toFile().exists()) {
+					try {
+						addFileToTarGz2(tOut, i, "");
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 				}
 			});
 			tOut.finish();
