@@ -10,17 +10,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.SocketException;
-import java.net.URL;
-import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Properties;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import org.apache.commons.compress.archivers.ArchiveEntry;
@@ -32,7 +30,6 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
 import org.apache.commons.compress.utils.IOUtils;
 import org.apache.commons.net.ftp.FTP;
 import org.apache.commons.net.ftp.FTPClient;
-import org.apache.commons.net.ftp.FTPFile;
 import org.apache.commons.net.ftp.FTPReply;
 
 import net.anotheria.moskito.aop.annotation.Monitor;
@@ -57,12 +54,16 @@ public class ReplacerThread {
 
 	private String archive_path;
 	private String extract_to_path;
-	private ArrayList<Path> files;
+	private Set<String> files;
 	private Properties props;
+
+	private String media_path;
 
 	public ReplacerThread(String oldDirPath, String newDirPath, Properties props) {
 		this.inputDir = Paths.get(oldDirPath);
 		this.outputDir = Paths.get(props.getProperty("outfile_path"));
+
+		this.media_path = props.getProperty("directory_path");
 
 		this.props = props;
 
@@ -78,7 +79,7 @@ public class ReplacerThread {
 
 		ftp = new FTPClient();
 
-		files = new ArrayList<Path>();
+		files = new HashSet<String>();
 	}
 
 	public ReplacerThread(String oldDirPath, String newDirPath, boolean hasRecursive, boolean hasReplace, String filter,
@@ -102,17 +103,10 @@ public class ReplacerThread {
 	}
 
 	public void compress() throws IOException {
-		runListFiles();
+		// runListFiles();
 		Persistance pers = new Persistance();
-		{
-			ArrayList<Path> temps_files = pers.getResultPaths();
-			temps_files.parallelStream().forEach(i -> {
-				if (Files.exists(i)) {
-					files.add(i);
-				}
-			});
-			log.info("temps_files.parallelStream() stopped");
-		}
+		files = new HashSet<String>(pers.getResultPaths());
+		pers = null;
 		createTarGZ();
 		sendFile();
 	}
@@ -187,7 +181,7 @@ public class ReplacerThread {
 	}
 
 	public void createTarGZ() throws FileNotFoundException, IOException {
-
+		System.out.println("createTarGZ");
 		try (final FileOutputStream fOut = new FileOutputStream(outputDir.toFile());
 				final BufferedOutputStream bOut = new BufferedOutputStream(fOut);
 				final GzipCompressorOutputStream gzOut = new GzipCompressorOutputStream(bOut);
@@ -195,12 +189,11 @@ public class ReplacerThread {
 
 			tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
 			files.stream().forEach(i -> {
-				if (i.toFile().exists()) {
-					try {
-						addFileToTarGz2(tOut, i, "");
-					} catch (IOException e) {
-						e.printStackTrace();
-					}
+				try {
+					addFileToTarGz2(tOut, new File(media_path +"//"+ i), "");
+				} catch (IOException e) {
+					e.printStackTrace();
+
 				}
 			});
 			tOut.finish();
@@ -213,8 +206,8 @@ public class ReplacerThread {
 		}
 	}
 
-	private void addFileToTarGz2(TarArchiveOutputStream tOut, Path filePath, String base) throws IOException {
-
+	private void addFileToTarGz2(TarArchiveOutputStream tOut, File filePath, String base) throws IOException {
+		// log.info("Started: %s" + filePath.getAbsolutePath());
 		String filePostfix = "";
 		{
 
@@ -225,110 +218,17 @@ public class ReplacerThread {
 			}
 		}
 
-		TarArchiveEntry tarEntry = new TarArchiveEntry(filePath.toFile(), filePostfix);
+		if (filePath.exists() && filePath.isFile()) {
+			TarArchiveEntry tarEntry = new TarArchiveEntry(filePath, filePostfix);
 
-		tOut.putArchiveEntry(tarEntry);
+			tOut.putArchiveEntry(tarEntry);
 
-		if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
-			IOUtils.copy(new FileInputStream(filePath.toFile()), tOut);
+			IOUtils.copy(new FileInputStream(filePath), tOut);
 			tOut.closeArchiveEntry();
 
-		}
-	}
-
-	public void run() {
-		runListFiles();
-		replaceFiles();
-	}
-
-	private void replaceFiles() {
-		files.parallelStream().forEach(filePath -> {
-			Path newFilePath = null;
-
-			{
-				int fileSubCount = filePath.getNameCount();
-				int subStart = fileSubCount - 5;
-				if (!filePath.toString().contains(filter)) {
-					subStart++;
-				}
-				String filePostfix = filePath.subpath(subStart, fileSubCount).toString();
-				newFilePath = outputDir.resolve(filePostfix);
-			}
-			if (Files.exists(filePath) && newFilePath != null && newFilePath != null) {
-				Path parentDir = newFilePath.getParent();
-				if (!Files.exists(parentDir)) {
-					try {
-						Files.createDirectories(parentDir);
-					} catch (IOException e) {
-						// fail to create directory
-						e.printStackTrace();
-					}
-				}
-				try {
-					log.info(String.format("%s %s", filePath, newFilePath));
-					Files.move(filePath, newFilePath);
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-			}
-		});
-	}
-
-	private void runListFiles() {
-		if (Files.isDirectory(inputDir)) {
-			try {
-				listFiles(inputDir);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		} else if (Files.isRegularFile(inputDir)) {
-			if (isFilter) {
-				if (inputDir.toString().contains("thumbs")) {
-					files.add(inputDir);
-				}
-			} else {
-				files.add(inputDir);
-			}
-		}
-	}
-
-	private void listFiles2(Path path) throws IOException {
-
-		try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
-			for (Path entry : stream) {
-				if (Files.exists(entry)) {
-					if (Files.isDirectory(entry)) {
-						try {
-							listFiles(entry);
-						} catch (IOException e) {
-							e.printStackTrace();
-						}
-					} else if (!Files.isDirectory(entry)) {
-
-						if (isFilter) {
-							if (entry.toString().contains(filter)) {
-								files.add(entry);
-							}
-						} else {
-							files.add(entry);
-						}
-					}
-
-				}
-			}
-		}
-	}
-
-	private void listFiles(Path path) throws IOException {
-		Files.walkFileTree(path, new ReplacerFileVisitor());
-	}
-
-	class ReplacerFileVisitor extends SimpleFileVisitor<Path> {
-		public FileVisitResult visitFile(Path path, BasicFileAttributes attr) {
-			files.add(path);
-			return FileVisitResult.CONTINUE;
+			log.info("Added entity: " + filePath.getAbsolutePath());
+		} else {
+			log.warning(" ELSE: " + filePath.getAbsolutePath());
 		}
 	}
 

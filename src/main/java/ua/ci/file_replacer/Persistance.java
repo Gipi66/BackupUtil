@@ -12,7 +12,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.Properties;
 import java.util.Random;
 import java.util.logging.Logger;
@@ -22,7 +21,7 @@ public class Persistance {
 	private final ArrayList<Properties> dbFilterPropsList = new ArrayList<Properties>();
 	private Properties dbProperties = new Properties();;
 
-	private static ArrayList<Path> resultPaths = new ArrayList<Path>();
+	private static ArrayList<String> resultPaths = new ArrayList<String>();
 
 	public Persistance() {
 
@@ -50,8 +49,8 @@ public class Persistance {
 	}
 
 	// singleton
-	public ArrayList<Path> getResultPaths() {
-		ArrayList<Path> result = null;
+	public ArrayList<String> getResultPaths() {
+		ArrayList<String> result = null;
 		if (resultPaths == null || resultPaths.size() == 0) {
 			this.showDBPropsList();
 			try {
@@ -161,7 +160,7 @@ public class Persistance {
 			// System.out.println("while");
 			while (rs.next()) {
 				for (int i = 1; i <= columnCount; i++) {
-					resultPaths.add(Paths.get(rs.getString(i)));
+					resultPaths.add(rs.getString(i));
 				}
 
 			}

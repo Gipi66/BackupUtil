@@ -1,10 +1,8 @@
 import java.io.IOException;
 import java.net.SocketException;
-import java.util.Properties;
 
 import org.junit.Test;
 
-import net.anotheria.moskito.core.dynamic.ProxyUtils;
 import ua.ci.file_replacer.Main;
 import ua.ci.file_replacer.ReplacerThread;
 
