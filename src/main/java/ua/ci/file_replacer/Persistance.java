@@ -67,7 +67,7 @@ public class Persistance {
 	}
 
 	private void loadDbFilters() throws IOException {
-		Path dbFiltersDir = Paths.get("db-filters");
+		Path dbFiltersDir = Paths.get("SQL filters");
 		if (!Files.exists(dbFiltersDir)) {
 			Files.createDirectories(dbFiltersDir);
 		}

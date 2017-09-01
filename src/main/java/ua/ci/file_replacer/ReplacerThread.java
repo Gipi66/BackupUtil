@@ -2,20 +2,22 @@ package ua.ci.file_replacer;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
 import java.net.SocketException;
-import java.nio.file.FileVisitResult;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
@@ -36,6 +38,9 @@ import net.anotheria.moskito.aop.annotation.Monitor;
 
 @Monitor
 public class ReplacerThread {
+	Logger log = Logger.getLogger(this.getClass().getSimpleName());
+
+	@SuppressWarnings("unused")
 	private final Path inputDir;
 	private final Path outputDir;
 
@@ -43,6 +48,7 @@ public class ReplacerThread {
 	private boolean hasRecursive;
 	@SuppressWarnings("unused")
 	private boolean hasReplace;
+	@SuppressWarnings("unused")
 	private boolean isFilter;
 
 	private String filter;
@@ -59,10 +65,47 @@ public class ReplacerThread {
 
 	private String media_path;
 
+	private ArrayList<String> sendingFilesPath;
+	{
+		sendingFilesPath = new ArrayList<String>();
+		Path externalFilesDir = Paths.get("send files");
+		for (int attempt = 0; attempt < 2; attempt++) {
+			if (Files.notExists(externalFilesDir)) {
+				try {
+					Files.createDirectory(externalFilesDir);
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			} else {
+				try (DirectoryStream<Path> externalFilesDirChildrens = Files.newDirectoryStream(externalFilesDir)) {
+					Properties prop;
+					for (Path externalFilesChildren : externalFilesDirChildrens) {
+						log.info(externalFilesChildren.toAbsolutePath().toString());
+						prop = new Properties();
+
+						InputStream is = Files.newInputStream(externalFilesChildren);
+						Reader reader = new InputStreamReader(is);
+						prop.load(reader);
+
+						String path = prop.getProperty("path");
+						sendingFilesPath.add(path);
+					}
+					log.info(sendingFilesPath.toString());
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+
+				break;
+			}
+		}
+
+	}
+
 	public ReplacerThread(String oldDirPath, String newDirPath, Properties props) {
 		this.inputDir = Paths.get(oldDirPath);
 		this.outputDir = Paths.get(props.getProperty("outfile_path"));
-
+		sendingFilesPath.add(outputDir.toAbsolutePath().toString());
 		this.media_path = props.getProperty("directory_path");
 
 		this.props = props;
@@ -72,7 +115,6 @@ public class ReplacerThread {
 			try {
 				Files.createDirectories(outputDir.getParent());
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
@@ -86,9 +128,9 @@ public class ReplacerThread {
 			String mediaName, Properties props) {
 
 		this(props.getProperty("directory_path"), props.getProperty("outfile_path"), props);
-		// TODO
+
 		this.hasRecursive = hasRecursive;
-		// TODO
+
 		this.hasReplace = hasReplace;
 
 		this.filter = props.getProperty("filter_name");
@@ -103,7 +145,6 @@ public class ReplacerThread {
 	}
 
 	public void compress() throws IOException {
-		// runListFiles();
 		Persistance pers = new Persistance();
 		files = new HashSet<String>(pers.getResultPaths());
 		pers = null;
@@ -112,9 +153,6 @@ public class ReplacerThread {
 	}
 
 	public void sendFile() throws SocketException, IOException {
-
-		String ftp_dump = "//backup_ciua//" + outputDir.getFileName();
-
 		{
 			String ftpUrl = props.getProperty("ftp_server");
 			String ftpLogin = props.getProperty("ftp_login");
@@ -123,24 +161,26 @@ public class ReplacerThread {
 			ftp.connect(ftpUrl);
 			ftp.login(ftpLogin, ftpPassword);
 		}
-		int reply = ftp.getReplyCode();
-		if (!FTPReply.isPositiveCompletion(reply)) {
-			ftp.disconnect();
-			System.err.println("FTP server refused connection.");
+		File file = null;
+		for (int i = 0; i < sendingFilesPath.size(); file = new File(sendingFilesPath.get(i))) {
+			String ftp_dump = "//backup_ciua//" + file.getName();
+
+			int reply = ftp.getReplyCode();
+			if (!FTPReply.isPositiveCompletion(reply)) {
+				ftp.disconnect();
+				System.err.println("FTP server refused connection.");
+			}
+
+			ftp.deleteFile(ftp_dump);
+
+			ftp.setFileType(FTP.BINARY_FILE_TYPE);
+
+			DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file)));
+
+			ftp.storeFile(ftp_dump, dis);
+
+			// after all
 		}
-
-		ftp.deleteFile(ftp_dump);
-
-		ftp.setFileType(FTP.BINARY_FILE_TYPE);
-		// log.info(String.format("%s\n %s", Arrays.toString(files),
-		// files[1].getName()));
-		// ArrayList<FTPFile> fileList = new ArrayList<FTPFile>(Arrays.asList(files));
-		// fileList.parallelStream().forEach(i-> log.info(i.getName()));
-		InputStream is = new FileInputStream(outputDir.toFile());
-
-		ftp.storeFile(ftp_dump, is);
-
-		// after all
 		ftp.disconnect();
 	}
 
@@ -171,10 +211,8 @@ public class ReplacerThread {
 			fin.close();
 
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} finally {
 		}
@@ -190,47 +228,43 @@ public class ReplacerThread {
 			tOut.setLongFileMode(TarArchiveOutputStream.LONGFILE_POSIX);
 			files.stream().forEach(i -> {
 				try {
-					addFileToTarGz2(tOut, new File(media_path +"//"+ i), "");
+					addFileToTarGz2(tOut, media_path + "//" + i, "");
 				} catch (IOException e) {
 					e.printStackTrace();
 
 				}
 			});
 			tOut.finish();
-		} finally {
-
-			// tOut.close();
-			// gzOut.close();
-			// bOut.close();
-			// fOut.close();
 		}
 	}
 
-	private void addFileToTarGz2(TarArchiveOutputStream tOut, File filePath, String base) throws IOException {
-		// log.info("Started: %s" + filePath.getAbsolutePath());
+	private void addFileToTarGz2(TarArchiveOutputStream tOut, String filePathString, String base) throws IOException {
+
 		String filePostfix = "";
 		{
 
-			filePostfix = filePath.toString();
+			filePostfix = filePathString;
 			if (isMedia) {
 				String[] filePostfixSplit = filePostfix.split(mediaName);
 				filePostfix = filePostfixSplit[filePostfixSplit.length - 1];
 			}
 		}
 
-		if (filePath.exists() && filePath.isFile()) {
-			TarArchiveEntry tarEntry = new TarArchiveEntry(filePath, filePostfix);
+		Path filePath = Paths.get(filePathString);
+		File file = filePath.toFile();
+
+		if (Files.exists(filePath) && Files.isRegularFile(filePath)) {
+			TarArchiveEntry tarEntry = new TarArchiveEntry(file, filePostfix);
 
 			tOut.putArchiveEntry(tarEntry);
 
-			IOUtils.copy(new FileInputStream(filePath), tOut);
+			IOUtils.copy(Files.newInputStream(filePath), tOut);
 			tOut.closeArchiveEntry();
 
-			log.info("Added entity: " + filePath.getAbsolutePath());
+			log.info("Added entity: " + file.getAbsolutePath());
 		} else {
-			log.warning(" ELSE: " + filePath.getAbsolutePath());
+			log.warning(" ELSE: " + file.getAbsolutePath());
 		}
 	}
 
-	Logger log = Logger.getLogger(this.getClass().getName());
 }

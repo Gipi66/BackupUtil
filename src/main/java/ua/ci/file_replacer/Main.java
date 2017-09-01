@@ -17,14 +17,10 @@ import java.util.Date;
 import java.util.Properties;
 
 /**
- * @author pc2
+ * @author Sergey
  *
  */
 public class Main {
-
-	/**
-	 * @param args
-	 */
 	public static void main(String[] args) {
 		Properties props = loadProps();
 		if (props == null) {
@@ -34,15 +30,12 @@ public class Main {
 		ReplacerThread repl = new ReplacerThread("/home/pc2/realt/realtyboard/media", "/home/pc2/del/media", true, true,
 				"", "media", props);
 
-		// repl.run();
 		try {
 			repl.compress();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
-		// repl.decompress();
 		System.out.println("total time: " + new Date(new Date().getTime() - startTime).getTime() / 1000);
 	}
 
@@ -56,7 +49,6 @@ public class Main {
 		try {
 			props.load(new FileInputStream("conf.ini"));
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -83,7 +75,6 @@ public class Main {
 			raf = new RandomAccessFile(file, "rws");
 			out = Channels.newOutputStream(raf.getChannel());
 		} catch (FileNotFoundException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		Properties compressProps = new Properties();
@@ -106,7 +97,6 @@ public class Main {
 			compressProps.store(out, "Configuration for creat archive");
 			deCompressProps.store(out, "Configuration for creat archive");
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 		System.out.printf("Default config file has generated (%s).\n", file.getAbsolutePath());
