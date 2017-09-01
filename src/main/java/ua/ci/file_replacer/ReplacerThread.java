@@ -84,9 +84,10 @@ public class ReplacerThread {
 						log.info(externalFilesChildren.toAbsolutePath().toString());
 						prop = new Properties();
 
-						InputStream is = Files.newInputStream(externalFilesChildren);
-						Reader reader = new InputStreamReader(is);
-						prop.load(reader);
+						try (InputStream is = Files.newInputStream(externalFilesChildren);
+								Reader reader = new InputStreamReader(is)) {
+							prop.load(reader);
+						}
 
 						String path = prop.getProperty("path");
 						sendingFilesPath.add(path);
@@ -257,8 +258,10 @@ public class ReplacerThread {
 			TarArchiveEntry tarEntry = new TarArchiveEntry(file, filePostfix);
 
 			tOut.putArchiveEntry(tarEntry);
+			try (InputStream is = Files.newInputStream(filePath)) {
+				IOUtils.copy(is, tOut);
+			}
 
-			IOUtils.copy(Files.newInputStream(filePath), tOut);
 			tOut.closeArchiveEntry();
 
 			log.info("Added entity: " + file.getAbsolutePath());
